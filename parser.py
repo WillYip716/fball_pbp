@@ -77,7 +77,27 @@ def run():
 
 
 
-run()    
+
+def y_td_parse():
+    data = pd.read_csv("data/pbp-2020.csv")
+    teams = pd.unique(data["OffenseTeam"].dropna())
+    output = {"year":2020}
+    teamsarray = []
+    for i in teams:
+        subset = data[(data["OffenseTeam"]==i)|(data["DefenseTeam"]==i)]
+        games = pd.unique(subset["GameId"].dropna())
+        subsetv = subset.groupby(["GameId"])
+        game = subsetv.get_group(2020122602)
+
+        print(game[game["DefenseTeam"]==i]["Yards"].sum())
+
+
+        break
+        
+
+
+
+y_td_parse()    
     
 #df.to_csv(file_name, encoding='utf-8', index=False)
 
@@ -90,4 +110,5 @@ run()
 #formations
 
 #direction
-#yards
+#yards per drive, yards allowed per drive
+
