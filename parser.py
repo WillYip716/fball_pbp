@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
-import json
+import statistics
+import csv
 
 
 def rpHelper(data):
@@ -80,22 +81,97 @@ def run():
 
 def y_td_parse():
     data = pd.read_csv("data/pbp-2020.csv")
-    teams = pd.unique(data["OffenseTeam"].dropna())
-    output = {"year":2020}
-    teamsarray = []
-    for i in teams:
-        subset = data[(data["OffenseTeam"]==i)|(data["DefenseTeam"]==i)]
-        games = pd.unique(subset["GameId"].dropna())
-        subsetv = subset.groupby(["GameId"])
-        game = subsetv.get_group(2020122602)
+    subset = data.groupby(["GameId"])
+    gid = pd.unique(data["GameId"].dropna())
+    teamnames = pd.unique(data["OffenseTeam"].dropna())
+    output = {"year":2020,"teams":[]}
+    teamsarray = {}
+    for i in gid:
 
-        print(game[game["DefenseTeam"]==i]["Yards"].sum())
+        game = subset.get_group(i)
+        teams = pd.unique(game["OffenseTeam"].dropna())
 
+        offr = game[(game["OffenseTeam"]==teams[0])&((game["PlayType"]=="RUSH") | (game["PlayType"]=="SCRAMBLE")) & (game["IsPenaltyAccepted"]==0)]["Yards"].sum()
+        offp = game[(game["OffenseTeam"]==teams[0])&((game["PlayType"]=="PASS") | (game["PlayType"]=="SACK")) & (game["IsPenaltyAccepted"]==0)]["Yards"].sum()
+        offt = game[(game["OffenseTeam"]==teams[0])&((game["IsTouchdown"]==1) & (game["IsFumble"]==0) & (game["IsInterception"]==0)) & (game["IsPenaltyAccepted"]==0)]["IsTouchdown"].sum()
+        offk = len(game[(game["OffenseTeam"]==teams[0])&((game["PlayType"]=="FIELD GOAL") & (str(game["Description"]).find("GOAL IS GOOD")))& (game["IsPenaltyAccepted"]==0)])
 
-        break
+        defr = game[(game["OffenseTeam"]==teams[1])&((game["PlayType"]=="RUSH") | (game["PlayType"]=="SCRAMBLE")) & (game["IsPenaltyAccepted"]==0)]["Yards"].sum()
+        defp = game[(game["OffenseTeam"]==teams[1])&((game["PlayType"]=="PASS") | (game["PlayType"]=="SACK")) & (game["IsPenaltyAccepted"]==0)]["Yards"].sum()
+        deft = game[(game["OffenseTeam"]==teams[1])&((game["IsTouchdown"]==1) & (game["IsFumble"]==0) & (game["IsInterception"]==0)) & (game["IsPenaltyAccepted"]==0)]["IsTouchdown"].sum()
+        defk = len(game[(game["OffenseTeam"]==teams[1])&((game["PlayType"]=="FIELD GOAL") & (str(game["Description"]).find("GOAL IS GOOD")))& (game["IsPenaltyAccepted"]==0)])
+
+        if teams[0] in teamsarray:
+            teamsarray[teams[0]]["o_rush"].append(offr)
+            teamsarray[teams[0]]["o_pass"].append(offp)
+            teamsarray[teams[0]]["o_td_y"].append(round(offt/(offr+offp),4))
+            teamsarray[teams[0]]["o_k_y"].append(round(offk/(offr+offp),4))
+            teamsarray[teams[0]]["d_rush"].append(defr)
+            teamsarray[teams[0]]["d_pass"].append(defp)
+            teamsarray[teams[0]]["d_td_y"].append(round(offt/(defr+defp),4))
+            teamsarray[teams[0]]["d_k_y"].append(round(offk/(defr+defp),4))
+        else:
+            teamsarray[teams[0]] = {}
+            teamsarray[teams[0]]["o_rush"] = [offr]
+            teamsarray[teams[0]]["o_pass"] = [offp]
+            teamsarray[teams[0]]["o_td_y"] = [round(offt/(offr+offp),4)]
+            teamsarray[teams[0]]["o_k_y"] = [round(offk/(offr+offp),4)]
+            teamsarray[teams[0]]["d_rush"] = [defr]
+            teamsarray[teams[0]]["d_pass"] = [defp]
+            teamsarray[teams[0]]["d_td_y"] = [round(offt/(defr+defp),4)]
+            teamsarray[teams[0]]["d_k_y"] =  [round(offk/(defr+defp),4)]
         
+        if teams[1] in teamsarray:
+            teamsarray[teams[1]]["o_rush"].append(defr)
+            teamsarray[teams[1]]["o_pass"].append(defp)
+            teamsarray[teams[1]]["o_td_y"].append(round(deft/(defr+defp),4))
+            teamsarray[teams[1]]["o_k_y"].append(round(defk/(defr+defp),4))
+            teamsarray[teams[1]]["d_rush"].append(offr)
+            teamsarray[teams[1]]["d_pass"].append(offp)
+            teamsarray[teams[1]]["d_td_y"].append(round(offt/(offr+offp),4))
+            teamsarray[teams[1]]["d_k_y"].append(round(offk/(offr+offp),4))
+        else:
+            teamsarray[teams[1]] = {}
+            teamsarray[teams[1]]["o_rush"] = [defr]
+            teamsarray[teams[1]]["o_pass"] = [defp]
+            teamsarray[teams[1]]["o_td_y"] = [round(deft/(defr+defp),4)]
+            teamsarray[teams[1]]["o_k_y"] = [round(defk/(defr+defp),4)]
+            teamsarray[teams[1]]["d_rush"] = [offr]
+            teamsarray[teams[1]]["d_pass"] = [offp]
+            teamsarray[teams[1]]["d_td_y"] = [round(offt/(offr+offp),4)]
+            teamsarray[teams[1]]["d_k_y"] =  [round(offk/(offr+offp),4)]
+        
+    for j in teamnames:
+        teamstats = {"team":j}
+        teamstats["o_rmean"] = round(statistics.mean(teamsarray[j]["o_rush"]),4)
+        teamstats["o_rstd"] = round(statistics.stdev(teamsarray[j]["o_rush"]),4)
+        teamstats["o_pmean"] = round(statistics.mean(teamsarray[j]["o_pass"]),4)
+        teamstats["o_pstd"] = round(statistics.stdev(teamsarray[j]["o_pass"]),4)
+        teamstats["o_tmean"] = round(statistics.mean(teamsarray[j]["o_td_y"]),4)
+        teamstats["o_tstd"] = round(statistics.stdev(teamsarray[j]["o_td_y"]),4)
+        teamstats["o_kmean"] = round(statistics.mean(teamsarray[j]["o_k_y"]),4)
+        teamstats["o_kstd"] = round(statistics.stdev(teamsarray[j]["o_k_y"]),4)
+        teamstats["d_rmean"] = round(statistics.mean(teamsarray[j]["d_rush"]),4)
+        teamstats["d_rstd"] = round(statistics.stdev(teamsarray[j]["d_rush"]),4)
+        teamstats["d_pmean"] = round(statistics.mean(teamsarray[j]["d_pass"]),4)
+        teamstats["d_pstd"] = round(statistics.stdev(teamsarray[j]["d_pass"]),4)
+        teamstats["d_tmean"] = round(statistics.mean(teamsarray[j]["d_td_y"]),4)
+        teamstats["d_tstd"] = round(statistics.stdev(teamsarray[j]["d_td_y"]),4)
+        teamstats["d_kmean"] = round(statistics.mean(teamsarray[j]["d_k_y"]),4)
+        teamstats["d_kstd"] = round(statistics.stdev(teamsarray[j]["d_k_y"]),4)
 
+        output["teams"].append(teamstats)
+    
 
+    #print(output)
+    keys = output["teams"][0].keys()
+    with open('team_mean_std.csv', 'w', newline='')  as output_file:
+        dict_writer = csv.DictWriter(output_file, keys)
+        dict_writer.writeheader()
+        dict_writer.writerows(output["teams"])
+    """with open('team_mean_std.json', 'w') as outfile:
+            json.dump(output, outfile)
+            print("file complete")"""
 
 y_td_parse()    
     
